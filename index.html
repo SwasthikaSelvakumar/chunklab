@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChunkLab: Text Chunking for RAG</title>
+<style>
+:root{--bg:#f2efe6;--ink:#17233b;--mut:#5b667a;--card:#fffdf7;--line:#c9c3b0;--hi:#ffe066;--ok:#1f8a5b;--no:#c0392b;--ac:#2f5bea;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#10151f;--ink:#e8ecf5;--mut:#97a1b5;--card:#182030;--line:#33405a;--hi:#7a6a14;--ok:#4cc38a;--no:#ff7a6b;--ac:#7e9bff;color-scheme:dark}}
+*{box-sizing:border-box}html{scroll-padding-top:150px}
+body{margin:0;background:var(--bg) linear-gradient(var(--line) 1px,transparent 1px) 0 0/100% 28px;background-blend-mode:soft-light;color:var(--ink);font:16px/1.6 system-ui,sans-serif}
+h1,h2,h3{font-family:Georgia,'Iowan Old Style',serif;line-height:1.2;margin:.2em 0 .4em}
+h1{font-size:1.5rem;margin:0}h2{font-size:1.7rem}h3{font-size:1.15rem}
+main{max-width:860px;margin:0 auto;padding:0 16px 80px}
+.hud{position:sticky;top:0;z-index:5;background:var(--ink);color:var(--bg);padding:10px 16px}
+.hi{max-width:860px;margin:auto;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.eng{font:13px/1.4 ui-monospace,Consolas,monospace;margin-left:auto;text-align:right;min-width:210px}
+.eng b{font-size:1.6rem;color:var(--hi)}.eng i{display:block;opacity:.75;font-style:normal;height:1.4em;overflow:hidden}
+.bar{height:6px;background:#ffffff33;border-radius:3px;margin-top:6px;overflow:hidden}.bar u{display:block;height:100%;background:var(--hi);width:0;transition:width .5s}
+nav{max-width:860px;margin:10px auto 0;display:flex;gap:6px;flex-wrap:wrap}
+.tab{background:transparent;color:inherit;border:1px solid #ffffff55;border-radius:6px;padding:6px 10px;font:inherit;font-size:.85rem;cursor:pointer}
+.tab[aria-current=true]{background:var(--hi);color:#17233b;border-color:var(--hi)}.tab:disabled{opacity:.5;cursor:not-allowed}
+.mod{display:none;padding-top:22px}.mod.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px 18px;margin:16px 0}
+.warm{border:2px dashed var(--ac)}.warm.ok{border:2px solid var(--ok)}
+.lock{display:none}
+button,select,input,textarea{font:inherit;color:var(--ink)}
+button.b{background:var(--ink);color:var(--bg);border:0;border-radius:5px;padding:7px 14px;cursor:pointer}
+button.g{background:none;border:1px solid var(--line);border-radius:5px;padding:6px 12px;cursor:pointer}
+input[type=text],select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:7px 9px;width:100%}
+textarea{min-height:110px}
+.sc{font:1.6rem ui-monospace,monospace;letter-spacing:.3em;background:var(--hi);color:#17233b;padding:2px 10px;border-radius:4px}
+.q{border-top:1px solid var(--line);padding:10px 0}.q button{display:block;width:100%;text-align:left;margin:5px 0;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:8px 10px;cursor:pointer}
+.q button.good{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 22%,transparent)}.q button.bad{border-color:var(--no);text-decoration:line-through;opacity:.7}
+.ex{color:var(--ok);margin:4px 0}.msg{min-height:1.4em;margin:6px 0 0}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.ck{border-left:6px solid hsl(var(--h) 65% 50%);background:hsl(var(--h) 80% 50%/.13);padding:6px 10px;margin:6px 0;border-radius:0 5px 5px 0;white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;word-break:break-word}
+.ck small{display:block;color:var(--mut)}.top{outline:2px solid var(--ok)}
+.st{font:13px ui-monospace,monospace;color:var(--mut)}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.flow span{background:var(--ink);color:var(--bg);padding:5px 10px;border-radius:5px;font-size:.9rem}.flow em{color:var(--mut);font-style:normal}
+table{border-collapse:collapse;width:100%;font-size:.93rem}td,th{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+svg{width:100%;height:auto;max-width:100%}svg text{fill:var(--ink);font:12px system-ui}.s1{fill:var(--card);stroke:var(--ink)}.s2{fill:var(--hi);stroke:var(--ink)}
+textarea.code{font:13px/1.5 ui-monospace,Consolas,monospace;min-height:150px;white-space:pre;tab-size:2}pre.st{white-space:pre-wrap;margin:6px 0 0}.kb pre{background:var(--bg);border:1px solid var(--line);padding:8px;border-radius:5px;overflow:auto;font-size:13px}.cut{background:var(--hi);color:#17233b;padding:0 2px}.pipe{color:var(--no);font-weight:700}
+</style></head><body>
+<header class="hud"><div class="hi"><h1>ChunkLab</h1>
+<div class="eng" aria-live="polite">SCORE_ENGINE <b id="sc">0</b> pts<i id="log">&gt; ready</i><small id="need" style="display:block;opacity:.9"></small><div class="bar"><u id="pb"></u></div></div></div>
+<nav id="nav"></nav></header>
+<main>
+
+<section class="mod on" id="m0"><h2>Module 1: Why we cut documents up</h2>
+<div class="card warm" data-w="0|TEXTCON|CONTEXT|The amount of text an LLM can read at once"></div>
+<div class="lock" id="b0">
+<div class="card"><p>An LLM answers from the text you put in its prompt. A 300-page policy can't go in whole: it costs tokens, may not fit, and models tend to use information in the middle of a long prompt less reliably (the "lost in the middle" effect, Liu et al. 2023). So a RAG system cuts documents into <b>chunks</b>, indexes them, and at question time fetches only the few chunks that matter.</p>
+<svg viewBox="0 0 720 150" role="img" aria-label="Document is split into chunks, the best two are retrieved into the prompt"><rect class="s1" x="5" y="30" width="90" height="90"/><text x="12" y="80">Document</text>
+<path d="M100 75h40" stroke="currentColor"/>
+<g id="svgc"></g><text x="150" y="20">Chunks (indexed)</text><path d="M470 75h40" stroke="currentColor"/>
+<rect class="s1" x="515" y="30" width="195" height="90"/><text x="525" y="50">LLM prompt</text><text x="525" y="68">Question + top-2 chunks</text><rect class="s2" x="525" y="82" width="80" height="26"/><rect class="s2" x="615" y="82" width="80" height="26"/></svg></div>
+<div class="card"><h3>Hands-on: move the cut</h3><p>The fact is <i>"within 30 days of purchase"</i>. Drag the cut point and see when a chunk boundary destroys it.</p>
+<input type="range" id="cut" min="1" max="57" value="38" aria-label="cut position"><p id="cutout" style="font:15px ui-monospace,monospace"></p><p class="msg" id="cutmsg"></p></div>
+<div class="card"><h3>Knowledge check</h3><div class="quiz" data-m="0"></div></div></div></section>
+
+<section class="mod" id="m1"><h2>Module 2: Three ways to cut</h2>
+<div class="card warm" data-w="1|ECURRSVIE|RECURSIVE|Tries paragraphs first, then sentences, then words"></div>
+<div class="lock" id="b1">
+<div class="card row"><div><h3>Fixed-size</h3><p>Every N characters. Fast and predictable, but blind to meaning: it cuts mid-word.</p></div><div><h3>Sentence-aware</h3><p>Packs whole sentences up to a limit. Boundaries stay readable.</p></div><div><h3>Recursive</h3><p>Prefers paragraph breaks, falls back to sentences, then words. A common production default.</p></div></div>
+<div class="card"><h3>Hands-on: chunk your own text</h3><p>Paste any text. Start with Fixed at size 60, note the mid-sentence cuts, then switch strategy. Overlap in sentence modes carries the previous sentence forward.</p><div id="lab1"></div></div>
+<div class="card"><p><b>Beyond these:</b> semantic chunking splits where the meaning shifts, measured by embedding similarity between neighbouring sentences. It can give cleaner topics but costs extra embedding calls, so it is not automatically better.</p></div>
+<div class="card"><h3>Knowledge check</h3><div class="quiz" data-m="1"></div></div></div></section>
+
+<section class="mod" id="m2"><h2>Module 3: Size, overlap and the retrieval test</h2>
+<div class="card warm" data-w="2|VERIRTALE|RETRIEVAL|Fetching the best chunks for a question"></div>
+<div class="lock" id="b2">
+<div class="card"><p><b>Small chunks</b> are precise but lose surrounding context. <b>Large chunks</b> keep context but dilute meaning, add noise and cost more tokens. <b>Overlap</b> (commonly 10 to 20% of chunk size) protects facts that sit on a boundary, at the price of duplicated storage. English text averages roughly 4 characters per token, which the lab uses as an estimate.</p>
+<svg viewBox="0 0 720 90" role="img" aria-label="Two chunks sharing an overlap region"><rect class="s1" x="20" y="10" width="400" height="30"/><rect class="s1" x="300" y="50" width="400" height="30"/><rect class="s2" x="300" y="10" width="120" height="30"/><rect class="s2" x="300" y="50" width="120" height="30"/><text x="30" y="30">Chunk 1</text><text x="560" y="70">Chunk 2</text><text x="320" y="30">overlap</text></svg></div>
+<div class="card"><h3>Challenge (+40): make retrieval work</h3><p>Question: <i>How many days do I have to request a refund?</i> Tune the settings until the <b>top-ranked chunk</b> contains "30 days", ends on a clean sentence boundary, and the chunk size is <b>160 characters or less</b> (no cheating with giant chunks).</p><div id="lab2"></div><p class="msg" id="chal"></p></div>
+<div class="card"><h3>Knowledge check</h3><div class="quiz" data-m="2"></div></div></div></section>
+
+<section class="mod" id="m3"><h2>Module 4: From lab to real pipeline</h2>
+<div class="card warm" data-w="3|ATADMATE|METADATA|Source, page and section stored beside each chunk"></div>
+<div class="lock" id="b3">
+<div class="card"><div class="flow"><span>Load</span><em>›</em><span>Clean</span><em>›</em><span>Chunk</span><em>›</em><span>Embed</span><em>›</em><span>Store</span><em>›</em><span>Retrieve</span><em>›</em><span>Generate</span></div>
+<p>Chunking sits in the middle, so every earlier mistake (OCR noise, repeated page headers) and every later step (embedding quality, retrieval) depends on it. Store <b>metadata</b> with each chunk: source file, page or section, timestamp.</p>
+<p><b>Beginner mistakes:</b> zero overlap, one setting for every document type, flattening tables so rows lose their headers, dropping metadata, and never measuring retrieval on real questions.</p></div>
+<div class="card"><h3>Chunk Doctor (+10 each): prescribe the strategy</h3>
+<table><tr><th>Document</th><th>Your prescription</th></tr>
+<tr><td>Product FAQ page</td><td><select data-p="1"></select></td></tr>
+<tr><td>Python source file</td><td><select data-p="2"></select></td></tr>
+<tr><td>Call-centre transcript</td><td><select data-p="3"></select></td></tr></table>
+<p><button class="b" id="doc">Check prescriptions</button></p><p class="msg" id="docmsg"></p></div>
+<div class="card"><h3>Knowledge check</h3><div class="quiz" data-m="3"></div></div>
+<div class="card" id="final" hidden></div></div></section>
+<section class="mod" id="m4"><h2>Module 5: Code Lab</h2>
+<div class="card warm" data-w="4|LAPROVE|OVERLAP|Text repeated at the edge of two neighbouring chunks"></div>
+<div class="lock" id="b4"><div class="card"><p>Write the real thing. Edit the function, press <b>Run tests</b>, and earn points when every test passes (a hint costs 5 points). Code runs in your browser. Prefer Python? The repo includes <a href="chunking_notebook.ipynb">chunking_notebook.ipynb</a> with the same ideas plus TF-IDF retrieval and a hit-rate exercise.</p></div><div id="ex"></div></div></section>
+<section class="mod kb" id="m5"><h2>Knowledge Base</h2><p>Search terms and code patterns. Always open, no points needed.</p><input type="text" id="kq" placeholder="Search: overlap, token, embedding, cosine…" aria-label="search"><div id="kl"></div></section>
+</main>
+<script>
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const T=[0,30,70,120,180,0],NM=['Why chunk','Strategies','Size & retrieval','Real pipeline','Code Lab','Knowledge Base'];
+let score=0,cur=0,chal=0,docdone=[0,0,0,0],logs=[];
+const qd=[0,0,0,0],wr=[0,0,0,0],opened=[0,0,0,0],ms=[0,0,0,0];
+const Q=[[
+{q:"Main reason RAG systems chunk documents?",o:["LLMs can only read English","Only the most relevant pieces are retrieved and fit the context window","To delete unimportant words","To encrypt the data"],a:1,e:"Chunking lets you retrieve just what's needed."},
+{q:"A cut turns \"30 days\" into \"30 d | ays\". What is the damage?",o:["None, embeddings repair it","Neither chunk holds the full fact, so retrieval and answers suffer","The file gets larger","The model forgets English"],a:1,e:"A fact split across chunks is hard to retrieve whole."},
+{q:"What normally comes right after chunking?",o:["Fine-tuning","Embedding each chunk into a vector","Deleting the PDF","Generating the answer"],a:1,e:"Chunks are embedded, then stored for search."},
+{b:1,q:"Why is one giant chunk per document a poor design?",o:["It dilutes meaning and wastes prompt tokens","Vector stores reject big text","It removes metadata","It cannot be embedded at all"],a:0,e:"One vector for many topics matches none of them well."}],[
+{q:"Which strategy ignores meaning and can cut mid-word?",o:["Recursive","Sentence-aware","Fixed-size","Semantic"],a:2,e:"Fixed-size just counts characters."},
+{q:"Recursive splitting tries separators in which order?",o:["Words, then paragraphs","Paragraphs, then sentences, then words","Random","Sentences only"],a:1,e:"It keeps the largest natural unit that still fits."},
+{q:"Best fit for a meeting transcript?",o:["Fixed 50 characters","Speaker-turn or time-window chunks keeping speaker labels","One chunk per word","Sort lines alphabetically"],a:1,e:"Who said what is part of the meaning."},
+{b:1,q:"What does semantic chunking do?",o:["Cuts every 500 tokens","Splits where embedding similarity between neighbouring sentences drops","Removes stop words","Only works on code"],a:1,e:"Better boundaries, but extra embedding cost."}],[
+{q:"A common overlap range is…",o:["0% always","10 to 20% of chunk size","90%","Exactly 1 character"],a:1,e:"Enough to protect boundary facts without huge duplication."},
+{q:"Raising overlap mostly increases…",o:["Duplicated text and index size","Model accuracy guaranteed","Vocabulary","GPU temperature only"],a:0,e:"Overlapping text is stored more than once."},
+{b:1,q:"Why do production systems size chunks in tokens, not characters?",o:["Tokens look nicer","Model and embedding limits are defined in tokens","Characters are illegal","Tokens are always shorter"],a:1,e:"Limits are in tokens, so measure what is limited."}],[
+{q:"What metadata should travel with a chunk?",o:["Nothing","Source file, page or section, timestamp so answers can cite","Only the author's age","Your API key"],a:1,e:"Metadata enables citations and filtered search."},
+{q:"How do you know your chunk settings are good?",o:["They look neat","Measure retrieval (hit rate, recall@k) on real questions","Pick the biggest size","Ask a friend"],a:1,e:"Evaluate with questions users really ask."},
+{q:"Where does cleaning (removing page headers, OCR fixes) happen?",o:["After generation","Before chunking","Never","Inside the user's browser only"],a:1,e:"Noise left in gets baked into every chunk."},
+{b:1,q:"Your bot misses answers held in PDF tables. Best fix?",o:["Raise temperature","Use table-aware parsing so each row keeps its headers, then chunk by row or table","Chunk every 20 chars","Delete tables"],a:1,e:"A row without its column headers is meaningless."}]];
+function log(t){logs.unshift('> '+t);logs=logs.slice(0,1);$('#log').textContent=logs[0]}
+function add(n,w){score+=n;$('#sc').textContent=score;log('+'+n+' '+w);upd()}
+const done=m=>qd[m]==Q[m].length&&(m!=2||chal);
+function ok(i){return i==0||i==5||(score>=T[i]&&done(i-1))}
+function upd(){const n=$('#nav');n.innerHTML='';NM.forEach((x,i)=>{const b=document.createElement('button');b.className='tab';b.textContent=(ok(i)?'':'🔒 ')+(i+1)+'. '+x+(ok(i)||!i?'':' · '+(done(i-1)?'needs '+T[i]+' pts':'finish module '+i+(i==3?' (quiz + challenge)':' quiz')));b.disabled=!ok(i);if(i==cur)b.setAttribute('aria-current','true');b.onclick=()=>go(i);n.append(b)});
+const nx=T.findIndex((t,i)=>!ok(i));const nd=$('#need');if(nx<0){$('#pb').style.width='100%';nd.textContent='All modules unlocked'}else{const p=nx-1,miss=[];if(score<T[nx])miss.push((T[nx]-score)+' more pts');if(qd[p]<Q[p].length)miss.push('answer all quiz questions in module '+(p+1)+' correctly ('+qd[p]+'/'+Q[p].length+')');if(p==2&&!chal)miss.push('solve the module 3 challenge');nd.textContent='To unlock module '+(nx+1)+': '+(miss.join(' + ')||'ready');$('#pb').style.width=Math.min(95,score/T[nx]*100)+'%'}}
+function go(i){cur=i;$$('.mod').forEach((s,j)=>s.classList.toggle('on',i==j));upd();scrollTo(0,0)}
+$$('.warm').forEach(w=>{const[m,sc,an,h]=w.dataset.w.split('|');let hint=0;
+w.innerHTML=`<h3>Warm-up puzzle</h3><p>Unscramble this term from the module: <span class="sc">${sc}</span></p><input type="text" maxlength="12" placeholder="your answer" aria-label="answer"> <p><button class="b">Check</button> <button class="g">Hint (-5 pts)</button></p><p class="msg"></p>`;
+const [c,hb]=$$('button',w),inp=$('input',w),mg=$('.msg',w);
+hb.onclick=()=>{hint=1;mg.textContent='Hint: '+h};
+c.onclick=()=>{if(inp.value.trim().toUpperCase()==an){mg.textContent='Unlocked. Module content is ready.';w.classList.add('ok');inp.disabled=c.disabled=hb.disabled=true;add(hint?10:15,'warm-up '+(hint?'(hint used)':'clean'));$('#b'+m).classList.remove('lock')}else mg.textContent='Not yet. Check the letters again.'};
+inp.addEventListener('keydown',e=>{if(e.key=='Enter')c.click()});inp.oninput=()=>{if(inp.value.trim().toUpperCase()==an)c.click();else mg.textContent=''}});
+function fin(m){if(!wr[m])add(15,'perfect round bonus');upd();if(m==3)final();log('quiz complete: '+NM[m])}
+$$('.quiz').forEach(el=>{const m=+el.dataset.m;Q[m].forEach((x,i)=>{const d=document.createElement('div');d.className='q';
+d.innerHTML=`<p><b>${x.b?'Bonus question: ':(i+1)+'. '}${x.q}</b></p>`+x.o.map((o,j)=>`<button data-j="${j}">${o}</button>`).join('')+'<p class="ex"></p>';let tr=0,dn=0;
+$$('button',d).forEach(b=>b.onclick=()=>{if(dn)return;if(+b.dataset.j==x.a){dn=1;b.classList.add('good');add(tr?(x.b?10:5):(x.b?20:10),'answer correct'+(tr?' (retry)':''));$('.ex',d).textContent='Correct. '+x.e;qd[m]++;if(qd[m]==Q[m].length)fin(m)}else{tr++;wr[m]++;b.classList.add('bad');b.disabled=true}});el.append(d)})});
+// M1 visuals
+$('#svgc').innerHTML=[0,1,2,3,4,5,6,7].map(i=>`<rect class="${i<2?'s2':'s1'}" x="${150+(i%4)*80}" y="${i<4?28:76}" width="72" height="40"/>`).join('');
+const S='Customers may request a refund within 30 days of purchase.',k=S.indexOf('30 days');
+function cutf(){const p=+$('#cut').value,L=S.slice(0,p),R=S.slice(p);const bad=p>k&&p<k+7;
+$('#cutout').innerHTML=L+'<span class="pipe"> | </span>'+R;$('#cutmsg').textContent=bad?'Broken: "30 days" is split across two chunks. Neither chunk can answer the question.':'Safe: the fact is still in one piece. Try dragging into the middle of "30 days".';$('#cutmsg').style.color=bad?'var(--no)':'var(--ok)'}
+$('#cut').oninput=cutf;cutf();
+// chunk engine
+const sents=t=>t.split(/(?<=[.!?])\s+|\n+/).filter(Boolean);
+function pack(u,size,ov){const o=[];let c=[];for(const x of u){if(c.length&&c.join(' ').length+x.length+1>size){o.push(c.join(' '));c=ov?[c[c.length-1]]:[]}c.push(x)}if(c.length)o.push(c.join(' '));return o}
+function chunk(t,mode,size,ov){if(mode=='fixed'){const o=[];for(let i=0;i<t.length;i+=Math.max(1,size-ov)){o.push(t.slice(i,i+size));if(i+size>=t.length)break}return o}
+if(mode=='sent')return pack(sents(t),size,ov);return t.split(/\n\n+/).flatMap(p=>p.length<=size?[p]:pack(sents(p),size,ov))}
+const SW=new Set('how many do i have to a the of is are what can my in on for and or be it'.split(' '));
+const tok=s=>(s.toLowerCase().match(/[a-z0-9]+/g)||[]).map(w=>w.replace(/s$/,'')).filter(w=>!SW.has(w)&&w);
+const DOC=`Refund Policy\n\nCustomers may request a refund within 30 days of purchase. Refunds are issued to the original payment method.\n\nDigital products are non-refundable once downloaded. Shipping fees are not refunded unless the item arrived damaged.\n\nTo start a request, contact support at help@shop.com with your order number.`;
+function lab(id,q){const r=$(id);r.innerHTML=(q?'':`<textarea aria-label="your text">${DOC}</textarea>`)+`<div class="row"><label>Strategy<select class="mo"><option value="fixed">Fixed-size</option><option value="sent">Sentence-aware</option><option value="rec">Recursive</option></select></label><label>Size: <b class="sv">60</b> chars<input type="range" class="sz" min="40" max="400" value="60"></label><label>Overlap: <b class="ov">0</b><input type="range" class="ovr" min="0" max="60" value="0"></label></div>`+(q?`<label>Question<input type="text" class="qy" value="How many days do I have to request a refund?"></label>`:'')+'<p class="st"></p><div class="out"></div>';
+const g=s=>$(s,r);function run(){const t=q?DOC:g('textarea').value,size=+g('.sz').value,ov=+g('.ovr').value;g('.sv').textContent=size;g('.ov').textContent=ov;
+let cs=chunk(t,g('.mo').value,size,ov),sc=cs.map(()=>0),best=-1;
+if(q){const qt=new Set(tok(g('.qy').value));sc=cs.map(c=>{const ct=tok(c);return ct.length?[...qt].filter(w=>ct.includes(w)).length/Math.sqrt(ct.length):0});const mx=Math.max(...sc);best=mx>0?sc.indexOf(mx):-1}
+const bad=cs.filter(c=>!/[.!?]$/.test(c.trim())).length;
+g('.st').textContent=`${cs.length} chunks · avg ${Math.round(cs.reduce((a,c)=>a+c.length,0)/(cs.length||1))} chars (~${Math.round(cs.reduce((a,c)=>a+c.length,0)/(cs.length||1)/4)} tokens) · ${bad} end mid-sentence`;
+g('.out').innerHTML=cs.map((c,i)=>`<div class="ck${i==best?' top':''}" style="--h:${i*57%360}"><small>chunk ${i+1}${q?` · match score ${sc[i].toFixed(2)}${i==best?' · TOP RESULT':''}`:''}</small>${c.replace(/</g,'&lt;')}</div>`).join('');
+if(q&&!chal){const m=$('#chal');const tp=cs[best]||'';if(/30 days/.test(tp)&&/[.!?]$/.test(tp.trim())&&size<=160){chal=1;add(40,'retrieval challenge solved');m.textContent='Solved: the retrieved chunk holds the full fact, ends cleanly, and stays small.';m.style.color='var(--ok)';upd()}else m.textContent='Not solved yet: '+[/30 days/.test(tp)?'':'top chunk lacks the full "30 days" fact',/[.!?]$/.test(tp.trim())?'':'top chunk ends mid-sentence',size<=160?'':'size is above 160 chars (lower the size slider)'].filter(Boolean).join('; ')+'.'}}
+$$('select,input,textarea',r).forEach(e=>e.oninput=run);run()}
+lab('#lab1',0);lab('#lab2',1);
+const PO=['Choose…','Clause or heading-based chunks','One Q&A pair per chunk','Split by function or class','Speaker-turn window'];
+$$('[data-p]').forEach(s=>s.innerHTML=PO.map((o,i)=>`<option value="${i}">${o}</option>`).join(''));
+$('#doc').onclick=()=>{let n=0;$$('[data-p]').forEach(s=>{const p=+s.dataset.p;if(+s.value==p){n++;if(!docdone[p]){docdone[p]=1;add(10,'prescription correct')}}});$('#docmsg').textContent=n==3?'All three correct: structure of the document decides the cut.':n+'/3 correct. Think about what one "unit of meaning" is in each document.'};
+function final(){const f=$('#final'),r=score>=300?'Chunk Architect':score>=200?'Pipeline Builder':'Chunk Apprentice';f.hidden=false;f.innerHTML=`<h3>Course complete: ${r}</h3><p>Final score <b>${score}</b> (max 380). Next step: build your own splitter, embed the chunks, and measure hit rate on 20 real questions.</p>`}
+const EX=[
+{n:'fixedChunks',p:30,d:'Split text into chunks of <code>size</code> characters. Each new chunk starts <code>size - overlap</code> characters after the last one. Stop once a chunk reaches the end.',h:'Loop i from 0 in steps of size-overlap, push text.slice(i, i+size), and break when i+size >= text.length.',c:'function fixedChunks(text, size, overlap) {\n  const out = [];\n  // TODO\n  return out;\n}',t:[[['abcdefghij',4,1],['abcd','defg','ghij']],[['abc',5,0],['abc']],[['abcdef',3,0],['abc','def']]]},
+{n:'countChunks',p:20,d:'Without chunking anything, compute how many chunks <code>fixedChunks</code> would make for a text of <code>len</code> characters. This shows what overlap costs in storage.',h:'If len <= size it is 1 chunk. Otherwise Math.ceil((len - size) / (size - overlap)) + 1.',c:'function countChunks(len, size, overlap) {\n  // TODO\n}',t:[[[10,4,1],3],[[100,50,0],2],[[100,50,10],3],[[30,50,5],1]]},
+{n:'sentenceChunks',p:30,d:'Pack whole sentences into chunks no longer than <code>size</code> characters (join sentences with a space). A single sentence longer than size gets its own chunk.',h:'Split with text.split(/(?<=[.!?])\\s+/). Keep a current list; if adding the next sentence would exceed size, push the joined list and start a new one.',c:'function sentenceChunks(text, size) {\n  const sentences = text.split(/(?<=[.!?])\\s+/);\n  const out = [];\n  // TODO\n  return out;\n}',t:[[['A b. C d. E f.',10],['A b. C d.','E f.']],[['One. Two.',3],['One.','Two.']],[['Hi there. Bye.',100],['Hi there. Bye.']]]}];
+EX.forEach((x,i)=>{const d=document.createElement('div');d.className='card';d.innerHTML=`<h3>Exercise ${i+1}: ${x.n} (+${x.p})</h3><p>${x.d}</p><textarea spellcheck="false" class="code" aria-label="code"></textarea><p><button class="b">Run tests</button> <button class="g">Hint (-5)</button></p><pre class="st out"></pre>`;
+let h=0,dn=0;const [rb,hb]=$$('button',d),ta=$('textarea',d),o=$('.out',d);ta.value=x.c;
+hb.onclick=()=>{h=1;o.textContent='Hint: '+x.h};
+rb.onclick=()=>{try{const f=new Function(ta.value+';return '+x.n+';')();const bad=[];x.t.forEach(([a,e])=>{let r;try{r=f(...a)}catch(err){r='error: '+err.message}if(JSON.stringify(r)!=JSON.stringify(e))bad.push(x.n+'('+a.map(v=>JSON.stringify(v)).join(', ')+') gave '+JSON.stringify(r)+', expected '+JSON.stringify(e))});
+if(bad.length)o.textContent=bad.join('\n');else{o.textContent='All '+x.t.length+' tests passed.';if(!dn){dn=1;add(x.p-(h?5:0),'code exercise '+(i+1)+' passed')}}}catch(err){o.textContent='Syntax error: '+err.message}};
+$('#ex').append(d)});
+const KB=[['Token','The unit a model actually reads, roughly 4 English characters. Context limits and prices are counted in tokens.'],['Context window','The maximum number of tokens a model can read in one prompt, including your question, instructions and retrieved chunks.'],['Chunk','A piece of a document sized to be indexed, retrieved and placed into a prompt as one unit.'],['Overlap','Text repeated at the edge of neighbouring chunks (often 10 to 20% of chunk size) so facts on a boundary survive. Costs extra storage.'],['Embedding','A list of numbers that represents the meaning of a text. Similar meanings land close together.'],['Vector database','A store optimised for finding the embeddings nearest to a query embedding, with metadata filters.'],['Top-k','The k best-scoring chunks returned for a question and placed into the prompt.'],['TF-IDF','Keyword scoring where a word counts more if it is frequent in a chunk but rare across chunks. Simple and good for exact terms.'],['Hit rate / recall@k','Share of test questions where a chunk containing the answer appears in the top k results. The main number for tuning chunking.'],['Metadata','Source file, page, section and timestamp stored with each chunk so answers can cite where they came from.'],['Semantic chunking','Splitting where meaning shifts, found by comparing embeddings of neighbouring sentences. Better topics, extra cost.'],['RAG','Retrieval-Augmented Generation: retrieve relevant chunks, then ask the model to answer using them.'],['Code: sliding window','<pre>for (let i = 0; i &lt; t.length; i += size - overlap)\n  out.push(t.slice(i, i + size));\n\n# Python\nfor i in range(0, len(t), size - overlap):\n    out.append(t[i:i+size])</pre>'],['Code: cosine similarity','<pre>dot(a, b) / (norm(a) * norm(b))\n# 1 = same direction, 0 = unrelated</pre>'],['Code: split into sentences','<pre>text.split(/(?&lt;=[.!?])\\s+/)      // JavaScript\nre.split(r"(?&lt;=[.!?])\\s+", text)  # Python</pre>']];
+function kb(){const q=$('#kq').value.toLowerCase();$('#kl').innerHTML=KB.filter(([t,d])=>(t+' '+d).toLowerCase().includes(q)).map(([t,d])=>`<div class="card"><h3>${t}</h3><p>${d}</p></div>`).join('')||'<p>No match. Try a shorter word.</p>'}
+$('#kq').oninput=kb;kb();
+upd();
+</script></body></html>
